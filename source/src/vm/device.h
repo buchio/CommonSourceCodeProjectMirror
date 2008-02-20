@@ -18,8 +18,8 @@
 #define MAX_OUTPUT	8
 
 // common signal id
-#define SIG_CPU_DO_INT	0
-#define SIG_CPU_DO_NMI	1
+#define SIG_CPU_NMI	101
+#define SIG_CPU_BUSREQ	102
 
 class DEVICE
 {
@@ -72,10 +72,38 @@ public:
 	virtual uint32 read_data16(uint32 addr) {
 		return read_data8(addr) | (read_data8(addr + 1) << 8);
 	}
+	virtual void write_data8w(uint32 addr, uint32 data, int* wait) {
+		*wait = 0;
+	}
+	virtual uint32 read_data8w(uint32 addr, int* wait) {
+		*wait = 0;
+		return 0xff;
+	}
+	virtual void write_data16w(uint32 addr, uint32 data, int* wait) {
+		*wait = 0;
+		write_data8(addr, data & 0xff); write_data8(addr + 1, data >> 8);
+	}
+	virtual uint32 read_data16w(uint32 addr, int* wait) {
+		*wait = 0;
+		return read_data8(addr) | (read_data8(addr + 1) << 8);
+	}
+	virtual void write_dma8(uint32 addr, uint32 data) {
+		write_data8(addr, data);
+	}
+	virtual uint32 read_dma8(uint32 addr) {
+		return read_data8(addr);
+	}
 	
 	// i/o bus
 	virtual void write_io8(uint32 addr, uint32 data) {}
 	virtual uint32 read_io8(uint32 addr) {
+		return 0xff;
+	}
+	virtual void write_io8w(uint32 addr, uint32 data, int* wait) {
+		*wait = 0;
+	}
+	virtual uint32 read_io8w(uint32 addr, int* wait) {
+		*wait = 0;
 		return 0xff;
 	}
 	
@@ -85,19 +113,23 @@ public:
 		return 0;
 	}
 	
-	// device to pic
-	virtual void request_int(int pri, uint32 vector, bool pending) {}
-	virtual void cancel_int(int pri) {}
+	// interrupt device to device
+	virtual void set_intr_iei(bool val) {}
 	
-	// cpu to pic
-	virtual void do_reti() {}
-	virtual void do_ei() {}
-	virtual bool accept_int() {
-		return false;
+	// interrupt device to cpu
+	virtual void set_intr_line(bool line, bool pending, uint32 bit) {}
+	
+	// interrupt cpu to device
+	virtual uint32 intr_ack() {
+		return 0xff;
 	}
+	virtual void intr_reti() {}
 	
-	// cpu patch
+	// cpu
 	virtual void run(int clock) {}
+	virtual int passed_clock() {
+		return 0;
+	}
 	virtual uint32 get_prv_pc() {
 		return 0;
 	}
@@ -106,7 +138,7 @@ public:
 	virtual void mix(int32* buffer, int cnt) {}
 	
 	// event callback
-	virtual void event_callback(int event_id) {}
+	virtual void event_callback(int event_id, int err) {}
 	virtual void event_frame() {}
 	virtual void event_vsync(int v, int clock) {}
 	virtual void event_hsync(int v, int h, int clock) {}

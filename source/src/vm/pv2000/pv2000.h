@@ -24,6 +24,9 @@
 #define USE_DATAREC
 #define DATAREC_BINARY_ONLY
 #define USE_ALT_F10_KEY
+#define USE_AUTO_KEY		5
+#define USE_AUTO_KEY_RELEASE	6
+#define USE_AUTO_KEY_CAPS
 #define USE_SCREEN_X2
 
 // device informations for virtual machine
@@ -35,6 +38,7 @@
 #define SCREEN_WIDTH		256
 #define SCREEN_HEIGHT		192
 #define TMS9918A_VRAM_SIZE	0x4000
+//#define TMS9918A_LIMIT_SPRITES
 
 #include "../../common.h"
 
@@ -55,13 +59,10 @@ class PRINTER;
 
 class VM
 {
-	// define friend
-	friend IO8;
 protected:
 	EMU* emu;
 	
 	// devices
-	DEVICE* dummy;
 	EVENT* event;
 	
 	DATAREC* drec;
@@ -99,7 +100,7 @@ public:
 	uint16* create_sound(int samples, bool fill);
 	
 	// notify key
-	void key_down();
+	void key_down(int code);
 	
 	// user interface
 	void open_cart(_TCHAR* filename);
@@ -123,8 +124,13 @@ public:
 	void regist_vsync_event(DEVICE* dev);
 	void regist_hsync_event(DEVICE* dev);
 	
+	// clock
+	uint32 current_clock();
+	uint32 passed_clock(uint32 prev);
+	
 	// devices
 	DEVICE* get_device(int id);
+	DEVICE* dummy;
 	DEVICE* first_device;
 	DEVICE* last_device;
 };

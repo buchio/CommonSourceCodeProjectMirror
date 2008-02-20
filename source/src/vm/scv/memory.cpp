@@ -11,6 +11,9 @@
 #include "memory.h"
 #include "../../fileio.h"
 
+#define MEM_WAIT_VDP_B 0
+#define MEM_WAIT_VDP_W 0
+
 #define SET_BANK(s, e, w, r) { \
 	int sb = (s) >> 7, eb = (e) >> 7; \
 	for(int i = sb; i <= eb; i++) { \
@@ -80,6 +83,42 @@ uint32 MEMORY::read_data8(uint32 addr)
 	return rbank[addr >> 7][addr & 0x7f];
 }
 
+void MEMORY::write_data16(uint32 addr, uint32 data)
+{
+	write_data8(addr, data & 0xff);
+	write_data8(addr + 1, data >> 8);
+}
+
+uint32 MEMORY::read_data16(uint32 addr)
+{
+	return read_data8(addr) | (read_data8(addr + 1) << 8);
+}
+
+void MEMORY::write_data8w(uint32 addr, uint32 data, int* wait)
+{
+	*wait = (0x2000 <= addr && addr < 0x3600) ? MEM_WAIT_VDP_B : 0;
+	write_data8(addr, data);
+}
+
+uint32 MEMORY::read_data8w(uint32 addr, int* wait)
+{
+	*wait = (0x2000 <= addr && addr < 0x3600) ? MEM_WAIT_VDP_B : 0;
+	return read_data8(addr);
+}
+
+void MEMORY::write_data16w(uint32 addr, uint32 data, int* wait)
+{
+	*wait = (0x2000 <= addr && addr < 0x3600) ? MEM_WAIT_VDP_W : 0;
+	write_data8(addr, data & 0xff);
+	write_data8(addr + 1, data >> 8);
+}
+
+uint32 MEMORY::read_data16w(uint32 addr, int* wait)
+{
+	*wait = (0x2000 <= addr && addr < 0x3600) ? MEM_WAIT_VDP_W : 0;
+	return read_data8(addr) | (read_data8(addr + 1) << 8);
+}
+
 void MEMORY::write_io8(uint32 addr, uint32 data)
 {
 	set_bank((data >> 5) & 3);
@@ -118,7 +157,7 @@ void MEMORY::open_cart(_TCHAR* filename)
 		save_path[len - 1] = _T('V');
 	}
 	else
-		_stprintf(save_path, "%s.SAV", filename);
+		_stprintf(save_path, _T("%s.SAV"), filename);
 	
 	// open cart and backuped sram
 	FILEIO* fio = new FILEIO();

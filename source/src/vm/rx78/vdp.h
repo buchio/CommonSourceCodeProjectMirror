@@ -15,20 +15,15 @@
 #include "../../emu.h"
 #include "../device.h"
 
-#ifdef _WIN32_WCE
-// RGB565
-#define RGB_COLOR(r, g, b) (uint16)(((uint16)(r) << 11) | ((uint16)(g) << 6) | (uint16)(b))
-#else
-// RGB555
-#define RGB_COLOR(r, g, b) (uint16)(((uint16)(r) << 10) | ((uint16)(g) << 5) | (uint16)(b))
-#endif
-
 class VDP : public DEVICE
 {
 private:
 	DEVICE* dev;
 	
 	uint16 palette_pc[17];	// 8cols * 2 + bg
+	uint8 screen0[184][192];
+	uint8 screen1[184][192];
+	
 	uint8* vram[6];
 	uint8 reg[6], bg, cmask, pmask;
 	
@@ -45,8 +40,13 @@ public:
 	void event_vsync(int v, int clock);
 	
 	// unique function
-	void set_context(DEVICE* device) { dev = device; }
-	void set_vram_ptr(uint8* ptr) { for(int i = 0; i < 6; i++) vram[i] = ptr + 4416 * i; }
+	void set_context(DEVICE* device) {
+		dev = device;
+	}
+	void set_vram_ptr(uint8* ptr) {
+		for(int i = 0; i < 6; i++)
+			vram[i] = ptr + 0x2000 * i;
+	}
 	void draw_screen();
 };
 

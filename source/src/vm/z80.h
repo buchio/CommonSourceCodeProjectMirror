@@ -15,6 +15,14 @@
 #include "../emu.h"
 #include "device.h"
 
+#ifdef NSC800
+#define SIG_NSC800_INT	0
+#define SIG_NSC800_RSTA	1
+#define SIG_NSC800_RSTB	2
+#define SIG_NSC800_RSTC	3
+#endif
+#define NMI_REQ_BIT	0x80000000
+
 #define AF	regs[0].w
 #define BC	regs[1].w
 #define DE 	regs[2].w
@@ -355,21 +363,23 @@ private:
 	contexts
 	--------------------------------------------------------------------------- */
 	
-	DEVICE *memory, *io, *interrupt;
+	DEVICE *d_mem, *d_io, *d_pic;
 	
 	/* ---------------------------------------------------------------------------
 	registers
 	--------------------------------------------------------------------------- */
 	
-	int count, m1_wait[0x10000];
+	int count, first;
 	
 	union REGTYPE {
 		uint8 b[2];
 		uint16 w;
 	} regs[6];
 	
-	uint8 _I, _R, IM, IFF1, IFF2, HALT;
+	uint8 _I, _R, IM, IFF1, IFF2, ICR;
 	uint16 SP, PC, prvPC, exAF, exBC, exDE, exHL, EA;
+	bool busreq, halt;
+	uint32 intr_req_bit, intr_pend_bit;
 	
 	/* ---------------------------------------------------------------------------
 	virtual machine interfaces
@@ -377,50 +387,129 @@ private:
 	
 	// memory
 	inline uint8 RM8(uint16 addr) {
-		return memory->read_data8(addr);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint8 val = d_mem->read_data8w(addr, &wait);
+		count -= wait;
+		return val;
+#else
+		return d_mem->read_data8(addr);
+#endif
 	}
 	inline void WM8(uint16 addr, uint8 val) {
-		memory->write_data8(addr, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data8w(addr, val, &wait);
+		count -= wait;
+#else
+		d_mem->write_data8(addr, val);
+#endif
 	}
 	
 	inline uint16 RM16(uint16 addr) {
-		return memory->read_data16(addr);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = d_mem->read_data16w(addr, &wait);
+		count -= wait;
+		return val;
+#else
+		return d_mem->read_data16(addr);
+#endif
 	}
 	inline void WM16(uint16 addr, uint16 val) {
-		memory->write_data16(addr, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data16w(addr, val, &wait);
+		count -= wait;
+#else
+		d_mem->write_data16(addr, val);
+#endif
+	}
+	inline uint8 FETCHOP() {
+#ifdef Z80_M1_CYCLE_WAIT
+		count -= Z80_M1_CYCLE_WAIT;
+#endif
+		_R = (_R & 0x80) | ((_R + 1) & 0x7f);
+		return d_mem->read_data8(PC++);
 	}
 	inline uint8 FETCH8() {
-		return memory->read_data8(PC++);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint8 val = d_mem->read_data8w(PC++, &wait);
+		count -= wait;
+		return val;
+#else
+		return d_mem->read_data8(PC++);
+#endif
 	}
 	inline uint16 FETCH16() {
-		uint16 tmp = memory->read_data16(PC);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = d_mem->read_data16w(PC, &wait);
+		count -= wait;
+#else
+		uint16 val = d_mem->read_data16(PC);
+#endif
 		PC += 2;
-		return tmp;
+		return val;
 	}
 	inline uint16 POP16() {
-		uint16 tmp = memory->read_data16(SP);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = d_mem->read_data16w(SP, &wait);
+		count -= wait;
+#else
+		uint16 val = d_mem->read_data16(SP);
+#endif
 		SP += 2;
-		return tmp;
+		return val;
 	}
 	inline void PUSH16(uint16 val) {
 		SP -= 2;
-		memory->write_data16(SP, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data16w(SP, val, &wait);
+		count -= wait;
+#else
+		d_mem->write_data16(SP, val);
+#endif
 	}
 	
 	// i/o
 	inline uint8 IN8(uint8 laddr, uint8 haddr) {
-		return io->read_io8(laddr | (haddr << 8));
+		uint32 addr = laddr | (haddr << 8);
+#ifdef CPU_IO_WAIT
+		int wait;
+		uint8 val = d_io->read_io8w(addr, &wait);
+		count -= wait;
+		return val;
+#else
+		return d_io->read_io8(addr);
+#endif
 	}
 	inline void OUT8(uint8 laddr, uint8 haddr, uint8 val) {
-		io->write_io8(laddr | (haddr << 8), val);
+#ifdef NSC800
+		if(laddr == 0xbb) {
+			ICR = val;
+			return;
+		}
+#endif
+		uint32 addr = laddr | (haddr << 8);
+#ifdef CPU_IO_WAIT
+		int wait;
+		d_io->write_io8w(addr, val, &wait);
+		count -= wait;
+#else
+		d_io->write_io8(addr, val);
+#endif
 	}
 	
 	// interrupt
 	inline void NOTIFY_RETI() {
-		interrupt->do_reti();
+		d_pic->intr_reti();
 	}
-	inline void NOTIFY_EI() {
-		interrupt->do_ei();
+	inline uint32 ACK_INTR() {
+		return d_pic->intr_ack();
 	}
 	
 	/* ---------------------------------------------------------------------------
@@ -428,12 +517,12 @@ private:
 	--------------------------------------------------------------------------- */
 	
 	// CB,DD,ED,FD
-	void execute_op();
-	void execute_opCB();
-	void execute_opDD();
-	void execute_opED();
-	void execute_opFD();
-	void execute_opXY();
+	void OP(uint8 code);
+	void OP_CB();
+	void OP_DD();
+	void OP_ED();
+	void OP_FD();
+	void OP_XY();
 	
 	// opecode
 	inline uint16 EXSP(uint16 reg);
@@ -453,17 +542,21 @@ private:
 	
 public:
 	Z80(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu) {
-		_memset(m1_wait, 0, sizeof(m1_wait));
+		count = first = 0;	// passed_clock must be zero at initialize
 	}
 	~Z80() {}
 	
 	// common functions
-	void initialize();
 	void reset();
 	void run(int clock);
 	void write_signal(int id, uint32 data, uint32 mask);
-	bool accept_int() {
-		return (IFF1 == 1) ? true : false;
+	void set_intr_line(bool line, bool pending, uint32 bit) {
+		uint32 mask = 1 << bit;
+		intr_req_bit = line ? (intr_req_bit | mask) : (intr_req_bit & ~mask);
+		intr_pend_bit = pending ? (intr_pend_bit | mask) : (intr_pend_bit & ~mask);
+	}
+	int passed_clock() {
+		return first - count;
 	}
 	uint32 get_prv_pc() {
 		return prvPC;
@@ -471,17 +564,13 @@ public:
 	
 	// unique function
 	void set_context_mem(DEVICE* device) {
-		memory = device;
+		d_mem = device;
 	}
 	void set_context_io(DEVICE* device) {
-		io = device;
+		d_io = device;
 	}
-	void set_context_int(DEVICE* device) {
-		interrupt = device;
-	}
-	void set_m1_wait(uint16 st, uint16 ed, int w) {
-		for(uint16 ad = st; ad <= ed; ad++)
-			m1_wait[ad] = w;
+	void set_context_intr(DEVICE* device) {
+		d_pic = device;
 	}
 };
 

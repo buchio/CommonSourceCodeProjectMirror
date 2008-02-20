@@ -221,13 +221,13 @@ private:
 	contexts
 	--------------------------------------------------------------------------- */
 	
-	DEVICE *memory, *io;
+	DEVICE *d_mem, *d_io;
 	
 	/* ---------------------------------------------------------------------------
 	registers
 	--------------------------------------------------------------------------- */
 	
-	int count, period, scount, tcount;
+	int count, first, period, scount, tcount;
 	
 	union REGTYPE {
 		uint8 b[2];
@@ -244,56 +244,127 @@ private:
 	
 	// memory
 	inline uint8 RM8(uint16 addr) {
-		return memory->read_data8(addr);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint8 val = d_mem->read_data8w(addr, &wait);
+		period += wait;
+		return val;
+#else
+		return d_mem->read_data8(addr);
+#endif
 	}
 	inline void WM8(uint16 addr, uint8 val) {
-		memory->write_data8(addr, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data8w(addr, val, &wait);
+		period += wait;
+#else
+		d_mem->write_data8(addr, val);
+#endif
 	}
 	inline uint16 RM16(uint16 addr) {
-		return memory->read_data16(addr);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = d_mem->read_data16w(addr, &wait);
+		period += wait;
+		return val;
+#else
+		return d_mem->read_data16(addr);
+#endif
 	}
 	inline void WM16(uint16 addr, uint16 val) {
-		memory->write_data16(addr, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data16w(addr, val, &wait);
+		period += wait;
+#else
+		d_mem->write_data16(addr, val);
+#endif
 	}
 	inline uint8 FETCH8() {
-		return memory->read_data8(PC++);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint8 val = d_mem->read_data8w(PC++, &wait);
+		period += wait;
+		return val;
+#else
+		return d_mem->read_data8(PC++);
+#endif
 	}
 	inline uint16 FETCH16() {
-		uint16 tmp = memory->read_data16(PC);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = d_mem->read_data16w(PC, &wait);
+		period += wait;
+#else
+		uint16 val = d_mem->read_data16(PC);
+#endif
 		PC += 2;
-		return tmp;
+		return val;
 	}
 	inline uint16 FETCHWA() {
-		return (_V << 8) | memory->read_data8(PC++);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = (_V << 8) | d_mem->read_data8w(PC++, &wait);
+		period += wait;
+		return val;
+#else
+		return (_V << 8) | d_mem->read_data8(PC++);
+#endif
 	}
 	inline uint8 POP8() {
-		return memory->read_data8(SP++);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint8 val = d_mem->read_data8w(SP++, &wait);
+		period += wait;
+		return val;
+#else
+		return d_mem->read_data8(SP++);
+#endif
 	}
 	inline void PUSH8(uint8 val) {
-		memory->write_data8(--SP, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data8w(--SP, val, &wait);
+		period += wait;
+#else
+		d_mem->write_data8(--SP, val);
+#endif
 	}
 	inline uint16 POP16() {
-		uint16 tmp = memory->read_data16(SP);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		uint16 val = d_mem->read_data16w(SP, &wait);
+		period += wait;
+#else
+		uint16 val = d_mem->read_data16(SP);
+#endif
 		SP += 2;
-		return tmp;
+		return val;
 	}
 	inline void PUSH16(uint16 val) {
 		SP -= 2;
-		memory->write_data16(SP, val);
+#ifdef CPU_MEMORY_WAIT
+		int wait;
+		d_mem->write_data16w(SP, val, &wait);
+		period += wait;
+#else
+		d_mem->write_data16(SP, val);
+#endif
 	}
 	inline uint8 IN8(int port) {
 		if(port == P_C)
-			return (io->read_io8(P_C) & 0x87) | (PORTC & 0x78);
-		return io->read_io8(port);
+			return (d_io->read_io8(P_C) & 0x87) | (PORTC & 0x78);
+		return d_io->read_io8(port);
 	}
 	inline void OUT8(int port, uint8 val) {
 		if(port == P_C)
 			PORTC = val;
-		io->write_io8(port, val);
+		d_io->write_io8(port, val);
 	}
 	// IOM : 0x20 = I/O, 0 = MEMORY
 	inline void UPDATE_PORTC(uint8 IOM) {
-		io->write_io8(P_C, (PORTC & MC) | ((SAK | TO | IOM) & ~MC));
+		d_io->write_io8(P_C, (PORTC & MC) | ((SAK | TO | IOM) & ~MC));
 	}
 	
 	/* ---------------------------------------------------------------------------
@@ -310,23 +381,28 @@ private:
 	void OP74();
 	
 public:
-	UPD7801(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu) {}
+	UPD7801(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu) {
+		count = first = 0;	// passed_clock must be zero at initialize
+	}
 	~UPD7801() {}
 	
 	// common function
 	void reset();
 	void run(int clock);
 	void write_signal(int id, uint32 data, uint32 mask);
+	int passed_clock() {
+		return first - count;
+	}
 	uint32 get_prv_pc() {
 		return prvPC;
 	}
 	
 	// unique function
 	void set_context_mem(DEVICE* device) {
-		memory = device;
+		d_mem = device;
 	}
 	void set_context_io(DEVICE* device) {
-		io = device;
+		d_io = device;
 	}
 };
 

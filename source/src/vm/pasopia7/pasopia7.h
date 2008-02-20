@@ -38,6 +38,8 @@
 //#define USE_FD3
 //#define USE_FD4
 #define USE_ALT_F10_KEY
+#define USE_AUTO_KEY		5
+#define USE_AUTO_KEY_RELEASE	6
 #define USE_SCANLINE
 
 // device informations for virtual machine
@@ -64,13 +66,6 @@
 //#define UPD765A_DMA_MODE
 #define UPD765A_WAIT_SEEK
 
-// irq priority
-#define IRQ_Z80PIO	0
-//			1
-#define IRQ_Z80CTC	2
-//			3-5
-#define IRQ_EXTERNAL	6
-
 #include "../../common.h"
 
 class EMU;
@@ -79,37 +74,34 @@ class EVENT;
 
 class BEEP;
 class DATAREC;
+class HD46505;
 class I8255;
 class NOT;
 class SN76489AN;
 class UPD765A;
 class Z80;
 class Z80CTC;
-class Z80PIC;
 class Z80PIO;
 
 class FLOPPY;
-class HD46505;
+class DISPLAY;
 class IO8;
 class IOTRAP;
 class KEYBOARD;
 class MEMORY;
 class PAC2;
-class TIMER;
 
 class VM
 {
-	// define friend
-	friend IO8;
 protected:
 	EMU* emu;
 	
 	// devices
-	DEVICE* dummy;
 	EVENT* event;
 	
 	BEEP* beep;
 	DATAREC* drec;
+	HD46505* crtc;
 	I8255* pio0;
 	I8255* pio1;
 	I8255* pio2;
@@ -119,17 +111,15 @@ protected:
 	UPD765A* fdc;
 	Z80* cpu;
 	Z80CTC* ctc;
-	Z80PIC* pic;
 	Z80PIO* pio;
 	
 	FLOPPY* floppy;
-	HD46505* crtc;
+	DISPLAY* display;
 	IO8* io;
 	IOTRAP* iotrap;
 	KEYBOARD* key;
 	MEMORY* memory;
 	PAC2* pac2;
-	TIMER* timer;
 	
 public:
 	// ----------------------------------------
@@ -176,8 +166,13 @@ public:
 	void regist_vsync_event(DEVICE* dev);
 	void regist_hsync_event(DEVICE* dev);
 	
+	// clock
+	uint32 current_clock();
+	uint32 passed_clock(uint32 prev);
+	
 	// devices
 	DEVICE* get_device(int id);
+	DEVICE* dummy;
 	DEVICE* first_device;
 	DEVICE* last_device;
 };

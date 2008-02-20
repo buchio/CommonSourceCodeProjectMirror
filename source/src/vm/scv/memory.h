@@ -19,7 +19,7 @@ class MEMORY : public DEVICE
 {
 private:
 	DEVICE* dev;
-
+	
 	// memory
 	_TCHAR save_path[_MAX_PATH];
 	
@@ -53,16 +53,31 @@ public:
 	void initialize();
 	void release();
 	void reset();
+	
 	void write_data8(uint32 addr, uint32 data);
 	uint32 read_data8(uint32 addr);
+	void write_data16(uint32 addr, uint32 data);
+	uint32 read_data16(uint32 addr);
+	
+	void write_data8w(uint32 addr, uint32 data, int* wait);
+	uint32 read_data8w(uint32 addr, int* wait);
+	void write_data16w(uint32 addr, uint32 data, int* wait);
+	uint32 read_data16w(uint32 addr, int* wait);
+	
 	void write_io8(uint32 addr, uint32 data);
 	
 	// unique functions
 	void open_cart(_TCHAR* filename);
 	void close_cart();
-	void set_context(DEVICE* device) { dev = device; }
-	uint8* get_font() { return bios + 0x200; }
-	uint8* get_vram() { return vram; }
+	void set_context(DEVICE* device) {
+		dev = device;
+	}
+	uint8* get_font() {
+		return bios + 0x200;
+	}
+	uint8* get_vram() {
+		return vram;
+	}
 };
 
 #endif

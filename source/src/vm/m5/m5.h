@@ -22,8 +22,10 @@
 
 #define USE_CART
 #define USE_DATAREC
-#define USE_JOYKEY
+#define USE_KEY_TO_JOY
 #define USE_ALT_F10_KEY
+#define USE_AUTO_KEY		5
+#define USE_AUTO_KEY_RELEASE	8
 #define USE_SCREEN_X2
 
 // device informations for virtual machine
@@ -35,6 +37,7 @@
 #define SCREEN_WIDTH		256
 #define SCREEN_HEIGHT		192
 #define TMS9918A_VRAM_SIZE	0x4000
+//#define TMS9918A_LIMIT_SPRITES
 
 #include "../../common.h"
 
@@ -48,7 +51,6 @@ class SN76489AN;
 class TMS9918A;
 class Z80;
 class Z80CTC;
-class Z80PIC;
 
 class CMT;
 class KEYBOARD;
@@ -56,13 +58,10 @@ class MEMORY;
 
 class VM
 {
-	// define friend
-	friend IO8;
 protected:
 	EMU* emu;
 	
 	// devices
-	DEVICE* dummy;
 	EVENT* event;
 	
 	DATAREC* drec;
@@ -71,7 +70,6 @@ protected:
 	TMS9918A* vdp;
 	Z80* cpu;
 	Z80CTC* ctc;
-	Z80PIC* pic;
 	
 	CMT* cmt;
 	KEYBOARD* key;
@@ -122,8 +120,13 @@ public:
 	void regist_vsync_event(DEVICE* dev);
 	void regist_hsync_event(DEVICE* dev);
 	
+	// clock
+	uint32 current_clock();
+	uint32 passed_clock(uint32 prev);
+	
 	// devices
 	DEVICE* get_device(int id);
+	DEVICE* dummy;
 	DEVICE* first_device;
 	DEVICE* last_device;
 };

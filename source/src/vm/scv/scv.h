@@ -21,7 +21,7 @@
 #define WINDOW_HEIGHT2		444
 
 #define USE_CART
-#define USE_JOYKEY
+#define USE_KEY_TO_JOY
 #define USE_SCREEN_X2
 #define DONT_KEEP_ASPECT
 
@@ -33,6 +33,9 @@
 #define CPU_CLOCKS		4000000
 #define SCREEN_WIDTH		192
 #define SCREEN_HEIGHT		222
+
+// memory wait
+//#define CPU_MEMORY_WAIT
 
 #include "../../common.h"
 
@@ -53,7 +56,6 @@ protected:
 	EMU* emu;
 	
 	// devices
-	DEVICE* dummy;
 	EVENT* event;
 	
 	UPD7801* cpu;
@@ -105,8 +107,13 @@ public:
 	void regist_vsync_event(DEVICE* dev);
 	void regist_hsync_event(DEVICE* dev);
 	
+	// clock
+	uint32 current_clock();
+	uint32 passed_clock(uint32 prev);
+	
 	// devices
 	DEVICE* get_device(int id);
+	DEVICE* dummy;
 	DEVICE* first_device;
 	DEVICE* last_device;
 };
