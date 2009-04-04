@@ -1,13 +1,11 @@
 /*
-	DUMP PC-98HA IPL/DICTIONARY/KANJI ROM
+	DUMP PC-98LT IPL/DICTIONARY/KANJI ROM
 */
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <conio.h>
 #include <farstr.h>
 #include <dos.h>
-#include <memory.h>
 
 void main()
 {
@@ -29,8 +27,8 @@ void main()
 	/* DICTIONARY */
 	fp = fopen("DICT.ROM", "wb");
 	src = MK_FP(0xd400, 0);
-	for(page = 0; page < 48; page++) {
-		printf("page=%d/48\n", page);
+	for(page = 0; page < 32; page++) {
+		printf("page=%d/32\n", page);
 		outp(0x4c10, page);
 		far_memcpy(tmp, src, 0x4000);
 		fwrite(tmp, 0x4000, 1, fp);
