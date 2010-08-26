@@ -1,26 +1,29 @@
 /*
-	FUJITSU FM-16pi Emulator 'eFM-16pi'
+	SHARP MZ-80K Emulator 'EmuZ-80K'
+	SHARP MZ-1200 Emulator 'EmuZ-1200'
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2008.10.10 -
+	Date   : 2010.08.18-
 
 	[ virtual machine ]
 */
 
-#include "fm16pi.h"
+#include "mz80k.h"
 #include "../../emu.h"
 #include "../device.h"
 #include "../event.h"
 
-#include "../beep.h"
+#ifdef _MZ1200
+#include "../and.h"
+#endif
+#include "../datarec.h"
 #include "../i8253.h"
-#include "../i8259.h"
-#include "../i86.h"
+#include "../i8255.h"
 #include "../io.h"
 #include "../ls393.h"
-#include "../mb8877.h"
-#include "../rtc58321.h"
+#include "../pcm1bit.h"
+#include "../z80.h"
 
 #include "display.h"
 #include "keyboard.h"
@@ -38,14 +41,16 @@ VM::VM(EMU* parent_emu) : emu(parent_emu)
 	event = new EVENT(this, emu);	// must be 2nd device
 	event->initialize();		// must be initialized first
 	
-//	beep = new BEEP(this, emu);
-	pit = new I8253(this, emu);
-	pic = new I8259(this, emu);
-	cpu = new I86(this, emu);
+#ifdef _MZ1200
+	and = new AND(this, emu);
+#endif
+	drec = new DATAREC(this, emu);
+	ctc = new I8253(this, emu);
+	pio = new I8255(this, emu);
 	io = new IO(this, emu);
-	ls74 = new LS393(this, emu);	// 74LS74
-	fdc = new MB8877(this, emu);
-	rtc = new RTC58321(this, emu);
+	counter = new LS393(this, emu);
+	pcm = new PCM1BIT(this, emu);
+	cpu = new Z80(this, emu);
 	
 	display = new DISPLAY(this, emu);
 	keyboard = new KEYBOARD(this, emu);
@@ -53,41 +58,46 @@ VM::VM(EMU* parent_emu) : emu(parent_emu)
 	
 	// set contexts
 	event->set_context_cpu(cpu);
-//	event->set_context_sound(beep);
+	event->set_context_sound(pcm);
 	
-	pit->set_context_ch0(ls74, SIG_LS393_CLK, 1);
-//	pit->set_context_ch2(beep, SIG_BEEP_PULSE, 1);
-	pit->set_constant_clock(0, 307200);
-	pit->set_constant_clock(1, 307200);
-	pit->set_constant_clock(2, 307200);
-	ls74->set_context_1qa(pic, SIG_I8259_IR0);
+#ifdef _MZ1200
+	and->set_context_out(cpu, SIG_CPU_IRQ, 1);
+	and->set_mask(SIG_AND_BIT_0 | SIG_AND_BIT_1);
+#endif
+	drec->set_context_out(pio, SIG_I8255_PORT_C, 0x20);
+	drec->set_context_remote(pio, SIG_I8255_PORT_C, 0x10);
+	ctc->set_context_ch0(counter, SIG_LS393_CLK, 1);
+	ctc->set_context_ch1(ctc, SIG_I8253_CLOCK_2, 1);
+#ifdef _MZ1200
+	ctc->set_context_ch2(and, SIG_AND_BIT_0, 1);
+#else
+	ctc->set_context_ch2(cpu, SIG_CPU_IRQ, 1);
+#endif
+	ctc->set_constant_clock(0, 2000000);
+	ctc->set_constant_clock(1, 31250);
+	pio->set_context_port_a(keyboard, SIG_KEYBOARD_COLUMN, 0x0f, 0);
+	pio->set_context_port_c(display, SIG_DISPLAY_VGATE, 1, 0);
+	pio->set_context_port_c(drec, SIG_DATAREC_OUT, 2, 0);
+#ifdef _MZ1200
+	pio->set_context_port_c(and, SIG_AND_BIT_1, 4, 0);
+#endif
+	pio->set_context_port_c(drec, SIG_DATAREC_TRIG, 8, 0);
+	counter->set_context_1qa(pcm, SIG_PCM1BIT_SIGNAL, 1);
 	
-	display->set_context_fdc(fdc);
 	display->set_vram_ptr(memory->get_vram());
+	keyboard->set_context_pio(pio);
+	memory->set_context_ctc(ctc);
+	memory->set_context_pio(pio);
+#ifdef _MZ1200
+	memory->set_context_disp(display);
+#endif
 	
 	// cpu bus
 	cpu->set_context_mem(memory);
 	cpu->set_context_io(io);
-	cpu->set_context_intr(pic);
+	cpu->set_context_intr(dummy);
 	
 	// i/o bus
-	io->set_iomap_alias_w(0x00, pic, 0);
-	io->set_iomap_alias_w(0x02, pic, 1);
-	io->set_iomap_alias_w(0xe0, pit, 0);
-	io->set_iomap_alias_w(0xe2, pit, 1);
-	io->set_iomap_alias_w(0xe4, pit, 2);
-	io->set_iomap_alias_w(0xe6, pit, 3);
-	
-	io->set_iomap_alias_r(0x00, pic, 0);
-	io->set_iomap_alias_r(0x02, pic, 1);
-
-	io->set_iomap_single_r(0x24, keyboard);
-
-
-	io->set_iomap_alias_r(0xe0, pit, 0);
-	io->set_iomap_alias_r(0xe2, pit, 1);
-	io->set_iomap_alias_r(0xe4, pit, 2);
-	io->set_iomap_alias_r(0xe6, pit, 3);
 	
 	// initialize all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {
@@ -125,6 +135,10 @@ void VM::reset()
 	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->reset();
 	}
+#ifdef _MZ1200
+	and->write_signal(SIG_AND_BIT_0, 0, 1);	// CLOCK = L
+	and->write_signal(SIG_AND_BIT_1, 1, 1);	// INTMASK = H
+#endif
 }
 
 void VM::run()
@@ -177,6 +191,11 @@ uint32 VM::get_prv_pc()
 	return cpu->get_prv_pc();
 }
 
+void VM::set_pc(uint32 pc)
+{
+	cpu->set_pc(pc);
+}
+
 // ----------------------------------------------------------------------------
 // draw screen
 // ----------------------------------------------------------------------------
@@ -196,7 +215,7 @@ void VM::initialize_sound(int rate, int samples)
 	event->initialize_sound(rate, samples);
 	
 	// init sound gen
-//	beep->init(rate, 2400, 2, 8000);
+	pcm->init(rate, 8000);
 }
 
 uint16* VM::create_sound(int samples, bool fill)
@@ -205,36 +224,49 @@ uint16* VM::create_sound(int samples, bool fill)
 }
 
 // ----------------------------------------------------------------------------
-// notify key
-// ----------------------------------------------------------------------------
-
-void VM::key_down(int code)
-{
-	keyboard->key_down(code);
-}
-
-void VM::key_up(int code)
-{
-	keyboard->key_up(code);
-}
-
-// ----------------------------------------------------------------------------
 // user interface
 // ----------------------------------------------------------------------------
 
-void VM::open_disk(_TCHAR* filename, int drv)
+void VM::open_mzt(_TCHAR* filename)
 {
-	fdc->open_disk(filename, drv);
+	memory->open_mzt(filename);
 }
 
-void VM::close_disk(int drv)
+void VM::play_datarec(_TCHAR* filename)
 {
-	fdc->close_disk(drv);
+	drec->play_datarec(filename);
+	drec->write_signal(SIG_DATAREC_REMOTE, 1, 1);
+}
+
+void VM::rec_datarec(_TCHAR* filename)
+{
+	drec->rec_datarec(filename);
+	drec->write_signal(SIG_DATAREC_REMOTE, 1, 1);
+}
+
+void VM::close_datarec()
+{
+	drec->close_datarec();
+	drec->write_signal(SIG_DATAREC_REMOTE, 0, 0);
+}
+
+void VM::push_play()
+{
+	drec->write_signal(SIG_DATAREC_REMOTE, 1, 1);
+}
+
+void VM::push_stop()
+{
+	drec->write_signal(SIG_DATAREC_REMOTE, 0, 0);
 }
 
 bool VM::now_skip()
 {
+#ifdef _TINYIMAS
 	return false;
+#else
+	return drec->skip();
+#endif
 }
 
 void VM::update_config()

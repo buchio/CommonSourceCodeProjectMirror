@@ -1,24 +1,27 @@
 /*
-	Gijutsu-Hyoron-Sha Babbage-2nd Emulator 'eBabbage-2nd'
+	SEGA SC-3000 Emulator 'eSC-3000'
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2009.12.26 -
+	Date   : 2006.08.17-
 
 	[ virtual machine ]
 */
 
-#include "babbage2nd.h"
+#include "sc3000.h"
 #include "../../emu.h"
 #include "../device.h"
 #include "../event.h"
 
+#include "../datarec.h"
+#include "../i8251.h"
+#include "../i8255.h"
 #include "../io.h"
+#include "../sn76489an.h"
+#include "../tms9918a.h"
+#include "../upd765a.h"
 #include "../z80.h"
-#include "../z80ctc.h"
-#include "../z80pio.h"
 
-#include "display.h"
 #include "keyboard.h"
 #include "memory.h"
 
@@ -34,72 +37,91 @@ VM::VM(EMU* parent_emu) : emu(parent_emu)
 	event = new EVENT(this, emu);	// must be 2nd device
 	event->initialize();		// must be initialized first
 	
+	drec = new DATAREC(this, emu);
+	sio = new I8251(this, emu);
+	pio_k = new I8255(this, emu);
+	pio_f = new I8255(this, emu);
 	io = new IO(this, emu);
+	psg = new SN76489AN(this, emu);
+	vdp = new TMS9918A(this, emu);
+	fdc = new UPD765A(this, emu);
 	cpu = new Z80(this, emu);
-	ctc = new Z80CTC(this, emu);
-	pio1 = new Z80PIO(this, emu);
-	pio2 = new Z80PIO(this, emu);
 	
-	display = new DISPLAY(this, emu);
-	keyboard = new KEYBOARD(this, emu);
+	key = new KEYBOARD(this, emu);
 	memory = new MEMORY(this, emu);
 	
 	// set contexts
 	event->set_context_cpu(cpu);
+	event->set_context_sound(psg);
 	
-	pio2->set_context_port_b(display, SIG_DISPLAY_7SEG_LED, 0xff, 0);
-	keyboard->set_context_pio(pio2, SIG_Z80PIO_PORT_A);
-	// p.145, fig.3-4
-	ctc->set_context_zc2(ctc, SIG_Z80CTC_TRIG_1, 1);
-	ctc->set_context_zc1(ctc, SIG_Z80CTC_TRIG_0, 1);
-	// p.114, fig.2-52
-	pio1->set_context_port_b(display, SIG_DISPLAY_8BIT_LED, 0xff, 0);
-	//pio1->set_context_port_b(pio1, SIG_Z80PIO_PORT_A, 0xff, 0);
+	drec->set_context_out(pio_k, SIG_I8255_PORT_B, 0x80);
+	pio_k->set_context_port_c(key, SIG_KEYBOARD_COLUMN, 0x07, 0);
+	pio_k->set_context_port_c(drec, SIG_DATAREC_REMOTE, 0x08, 0);
+	pio_k->set_context_port_c(drec, SIG_DATAREC_OUT, 0x10, 0);
+	pio_f->set_context_port_c(fdc, SIG_UPD765A_MOTOR, 2, 0);
+	pio_f->set_context_port_c(fdc, SIG_UPD765A_TC, 4, 0);
+	pio_f->set_context_port_c(fdc, SIG_UPD765A_RESET, 8, 0);
+	pio_f->set_context_port_c(memory, SIG_MEMORY_SEL, 0x40, 0);
+	vdp->set_context_irq(cpu, SIG_CPU_IRQ, 1);
+	fdc->set_context_irq(pio_f, SIG_I8255_PORT_A, 1);
+	fdc->set_context_index(pio_f, SIG_I8255_PORT_A, 4);
+	
+	key->set_context_cpu(cpu);
+	key->set_context_pio(pio_k);
 	
 	// cpu bus
 	cpu->set_context_mem(memory);
 	cpu->set_context_io(io);
-	cpu->set_context_intr(ctc);
-	
-	// z80 family daisy chain
-	ctc->set_context_intr(cpu, 0);
-	ctc->set_context_child(pio1);
-	pio1->set_context_intr(cpu, 1);
-	pio1->set_context_child(pio2);
-	pio2->set_context_intr(cpu, 2);
+	cpu->set_context_intr(dummy);
 	
 	// i/o bus
-	io->set_iomap_range_w(0x00, 0x03, ctc);
-	io->set_iomap_range_w(0x10, 0x13, pio1);
-	io->set_iomap_range_w(0x20, 0x23, pio2);
-	
-	io->set_iomap_range_r(0x00, 0x03, ctc);
-	io->set_iomap_range_r(0x10, 0x13, pio1);
-	io->set_iomap_range_r(0x20, 0x23, pio2);
-	
-	// initialize and reset all devices except the event manager
-	for(DEVICE* device = first_device; device; device = device->next_device) {
-		if(device->this_device_id != event->this_device_id)
-			device->initialize();
+	for(int i = 0x40; i <= 0x7f; i++) {
+		io->set_iomap_single_w(i, psg);
+		io->set_iomap_single_r(i, psg);
 	}
+	for(int i = 0x80; i <= 0xbf; i++) {
+		io->set_iomap_single_w(i, vdp);
+		io->set_iomap_single_r(i, vdp);
+	}
+	for(int i = 0xc0; i <= 0xdf; i++) {
+		io->set_iomap_single_w(i, pio_k);
+		io->set_iomap_single_r(i, pio_k);
+	}
+	for(int i = 0xe0; i <= 0xe3; i++) {
+		io->set_iomap_single_w(i, fdc);
+		io->set_iomap_single_r(i, fdc);
+	}
+	for(int i = 0xe4; i <= 0xe7; i++) {
+		io->set_iomap_single_w(i, pio_f);
+		io->set_iomap_single_r(i, pio_f);
+	}
+	for(int i = 0xe8; i <= 0xeb; i++) {
+		io->set_iomap_single_w(i, sio);
+		io->set_iomap_single_r(i, sio);
+	}
+	
+	// initialize all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {
-		if(device->this_device_id != event->this_device_id)
-			device->reset();
+		if(device->this_device_id != event->this_device_id) {
+			device->initialize();
+		}
 	}
 }
 
 VM::~VM()
 {
 	// delete all devices
-	for(DEVICE* device = first_device; device; device = device->next_device)
+	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->release();
+	}
 }
 
 DEVICE* VM::get_device(int id)
 {
 	for(DEVICE* device = first_device; device; device = device->next_device) {
-		if(device->this_device_id == id)
+		if(device->this_device_id == id) {
 			return device;
+		}
 	}
 	return NULL;
 }
@@ -111,9 +133,9 @@ DEVICE* VM::get_device(int id)
 void VM::reset()
 {
 	// reset all devices
-	for(DEVICE* device = first_device; device; device = device->next_device)
+	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->reset();
-	
+	}
 }
 
 void VM::run()
@@ -172,7 +194,7 @@ uint32 VM::get_prv_pc()
 
 void VM::draw_screen()
 {
-	display->draw_screen();
+	vdp->draw_screen();
 }
 
 // ----------------------------------------------------------------------------
@@ -183,6 +205,9 @@ void VM::initialize_sound(int rate, int samples)
 {
 	// init sound manager
 	event->initialize_sound(rate, samples);
+	
+	// init sound gen
+	psg->init(rate, 3579545, 8000);
 }
 
 uint16* VM::create_sound(int samples, bool fill)
@@ -191,41 +216,55 @@ uint16* VM::create_sound(int samples, bool fill)
 }
 
 // ----------------------------------------------------------------------------
-// notify key
-// ----------------------------------------------------------------------------
-
-void VM::key_down(int code)
-{
-	keyboard->key_down(code);
-}
-
-void VM::key_up(int code)
-{
-	//keyboard->key_up(code);
-}
-
-// ----------------------------------------------------------------------------
 // user interface
 // ----------------------------------------------------------------------------
 
-void VM::load_ram(_TCHAR* filename)
+void VM::open_cart(_TCHAR* filename)
 {
-	memory->load_ram(filename);
+	memory->open_cart(filename);
+	reset();
 }
 
-void VM::save_ram(_TCHAR* filename)
+void VM::close_cart()
 {
-	memory->save_ram(filename);
+	memory->close_cart();
+	reset();
+}
+
+void VM::open_disk(_TCHAR* filename, int drv)
+{
+	fdc->open_disk(filename, drv);
+}
+
+void VM::close_disk(int drv)
+{
+	fdc->close_disk(drv);
+}
+
+void VM::play_datarec(_TCHAR* filename)
+{
+	drec->play_datarec(filename);
+}
+
+void VM::rec_datarec(_TCHAR* filename)
+{
+	drec->rec_datarec(filename);
+}
+
+void VM::close_datarec()
+{
+	drec->close_datarec();
 }
 
 bool VM::now_skip()
 {
-	return false;
+	return drec->skip();
 }
 
 void VM::update_config()
 {
-	for(DEVICE* device = first_device; device; device = device->next_device)
+	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->update_config();
+	}
 }
 

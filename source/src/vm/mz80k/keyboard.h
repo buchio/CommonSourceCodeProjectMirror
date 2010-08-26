@@ -1,9 +1,10 @@
 /*
-	Gijutsu-Hyoron-Sha Babbage-2nd Emulator 'eBabbage-2nd'
+	SHARP MZ-80K Emulator 'EmuZ-80K'
+	SHARP MZ-1200 Emulator 'EmuZ-1200'
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2009.12.26 -
+	Date   : 2010.08.18-
 
 	[ keyboard ]
 */
@@ -15,24 +16,30 @@
 #include "../../emu.h"
 #include "../device.h"
 
+#define SIG_KEYBOARD_COLUMN	0
+
 class KEYBOARD : public DEVICE
 {
 private:
 	DEVICE *d_pio;
-	int did_pio;
+	
+	uint8* key_stat;
+	uint8 column;
+	void update_key();
 	
 public:
 	KEYBOARD(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu) {}
 	~KEYBOARD() {}
 	
 	// common functions
+	void initialize();
+	void write_signal(int id, uint32 data, uint32 mask);
+	void event_frame();
 	
-	// unique functions
-	void set_context_pio(DEVICE* device, int id) {
-		d_pio = device; did_pio = id;
+	// unique function
+	void set_context_pio(DEVICE* device) {
+		d_pio = device;
 	}
-	void key_down(int code);
 };
 
 #endif
-

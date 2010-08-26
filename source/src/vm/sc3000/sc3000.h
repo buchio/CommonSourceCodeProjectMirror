@@ -1,42 +1,43 @@
 /*
-	SHARP PC-3200 Emulator 'ePC-3200'
+	SEGA SC-3000 Emulator 'eSC-3000'
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2008.07.08 -
+	Date   : 2006.08.17-
 
 	[ virtual machine ]
 */
 
-#ifndef _PC3200_H_
-#define _PC3200_H_
+#ifndef _SC3000_H_
+#define _SC3000_H_
 
-#define DEVICE_NAME		"SHARP PC-3200"
-#define CONFIG_NAME		"pc3200"
+#define DEVICE_NAME		"SEGA SC-3000"
+#define CONFIG_NAME		"sc3000"
 #define CONFIG_VERSION		0x01
 
 // device informations for virtual machine
-#define FRAMES_PER_10SECS	599
-#define FRAMES_PER_SEC		59.9
-#define LINES_PER_FRAME 	262
-#define CHARS_PER_LINE		114
-#define CPU_CLOCKS		4000000
-#define SCREEN_WIDTH		640
-#define SCREEN_HEIGHT		400
+#define FRAMES_PER_10SECS	600
+#define FRAMES_PER_SEC		60
+#define LINES_PER_FRAME		262
+#define CHARS_PER_LINE		1
+#define CPU_CLOCKS		3579545
+#define SCREEN_WIDTH		256
+#define SCREEN_HEIGHT		192
+#define TMS9918A_VRAM_SIZE	0x4000
+#define TMS9918A_LIMIT_SPRITES
+//720
 #define MAX_DRIVE		4
-//#define UPD765A_DMA_MODE
+#define UPD765A_DRQ_DELAY
 #define UPD765A_WAIT_SEEK
+#define UPD765A_STRICT_ID
 
 // device informations for win32
-#define USE_DATAREC
+#define USE_CART
 #define USE_FD1
-#define USE_FD2
-//#define USE_FD3
-//#define USE_FD4
+#define USE_DATAREC
 #define USE_ALT_F10_KEY
 #define USE_AUTO_KEY		5
-#define USE_AUTO_KEY_RELEASE	6
-#define USE_AUTO_KEY_CAPS
+#define USE_AUTO_KEY_RELEASE	8
 
 #include "../../common.h"
 
@@ -45,14 +46,14 @@ class DEVICE;
 class EVENT;
 
 class DATAREC;
+class I8251;
 class I8255;
 class IO;
-class UPD1990A;
+class SN76489AN;
+class TMS9918A;
 class UPD765A;
 class Z80;
 
-class DISPLAY;
-class INTERRUPT;
 class KEYBOARD;
 class MEMORY;
 
@@ -65,15 +66,16 @@ protected:
 	EVENT* event;
 	
 	DATAREC* drec;
-	I8255* pio;
+	I8251* sio;
+	I8255* pio_k;
+	I8255* pio_f;
 	IO* io;
-	UPD1990A* rtc;
+	SN76489AN* psg;
+	TMS9918A* vdp;
 	UPD765A* fdc;
 	Z80* cpu;
 	
-	DISPLAY* display;
-	INTERRUPT* interrupt;
-	KEYBOARD* keyboard;
+	KEYBOARD* key;
 	MEMORY* memory;
 	
 public:
@@ -100,6 +102,8 @@ public:
 	uint16* create_sound(int samples, bool fill);
 	
 	// user interface
+	void open_cart(_TCHAR* filename);
+	void close_cart();
 	void open_disk(_TCHAR* filename, int drv);
 	void close_disk(int drv);
 	void play_datarec(_TCHAR* filename);
