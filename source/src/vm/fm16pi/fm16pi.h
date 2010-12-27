@@ -1,47 +1,47 @@
 /*
-	SHARP MZ-80K Emulator 'EmuZ-80K'
-	SHARP MZ-1200 Emulator 'EmuZ-1200'
+	FUJITSU FM16pi Emulator 'eFM16pi'
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2010.08.18-
+	Date   : 2010.12.25-
 
 	[ virtual machine ]
 */
 
-#ifndef _MZ80K_H_
-#define _MZ80K_H_
+#ifndef _FM16PI_H_
+#define _FM16PI_H_
 
-#ifdef _MZ1200
-#define DEVICE_NAME		"SHARP MZ-1200"
-#define CONFIG_NAME		"mz1200"
-#else
-#define DEVICE_NAME		"SHARP MZ-80K"
-#define CONFIG_NAME		"mz80k"
-#endif
+#define DEVICE_NAME		"FUJITSU FM16pi"
+#define CONFIG_NAME		"fm16pi"
 #define CONFIG_VERSION		0x01
 
 // device informations for virtual machine
+
+// TODO: check refresh rate
 #define FRAMES_PER_10SECS	600
 #define FRAMES_PER_SEC		60
-#define LINES_PER_FRAME		262
-#define CHARS_PER_LINE		1
-#define CPU_CLOCKS		2000000
-#define SCREEN_WIDTH		320
+#define LINES_PER_FRAME 	220
+#define CHARS_PER_LINE		108
+
+#define CPU_CLOCKS		4915200
+#define SCREEN_WIDTH		640
 #define SCREEN_HEIGHT		200
-#define USE_PCM1BIT
-#define PCM1BIT_HIGH_QUALITY
-//#define LOW_PASS_FILTER
+#define MAX_DRIVE		4
+#define HAS_I86
+#define I8259_MAX_CHIPS		1
+#define MEMORY_ADDR_MAX		0x100000
+#define MEMORY_BANK_SIZE	0x4000
+#define IO_ADDR_MAX		0x10000
+//#define EVENT_PRECISE		10
 
 // device informations for win32
-#define USE_DATAREC
-#define USE_DATAREC_BUTTON
-#define DATAREC_MZT
-#define USE_MZT
+#define USE_FD1
+#define USE_FD2
+#define NOTIFY_KEY_DOWN
 #define USE_ALT_F10_KEY
 #define USE_AUTO_KEY		5
 #define USE_AUTO_KEY_RELEASE	6
-#define USE_AUTO_KEY_CAPS
+#define USE_POWER_OFF
 
 #include "../../common.h"
 
@@ -49,20 +49,19 @@ class EMU;
 class DEVICE;
 class EVENT;
 
-#ifdef _MZ1200
-class AND;
-#endif
-class DATAREC;
+class I8251;
 class I8253;
 class I8255;
+class I8259;
+class I86;
 class IO;
-class LS393;
-class PCM1BIT;
-class Z80;
-
-class DISPLAY;
-class KEYBOARD;
+class MB8877;
 class MEMORY;
+class MSM5832;
+class NOT;
+class PCM1BIT;
+
+class SUB;
 
 class VM
 {
@@ -72,20 +71,24 @@ protected:
 	// devices
 	EVENT* event;
 	
-#ifdef _MZ1200
-	AND* and;
-#endif
-	DATAREC* drec;
-	I8253* ctc;
+	I8251* sio;
+	I8253* pit;
 	I8255* pio;
+	I8259* pic;
+	I86* cpu;
 	IO* io;
-	LS393* counter;
-	PCM1BIT* pcm;
-	Z80* cpu;
-	
-	DISPLAY* display;
-	KEYBOARD* keyboard;
+	MB8877* fdc;
 	MEMORY* memory;
+	MSM5832* rtc;
+	NOT* not;
+	PCM1BIT* pcm;
+	
+	SUB* sub;
+	
+	// memory
+	uint8 ram[0x80000];
+	uint8 kanji[0x40000];
+	uint8 cart[0x40000];
 	
 public:
 	// ----------------------------------------
@@ -101,6 +104,7 @@ public:
 	
 	// drive virtual machine
 	void reset();
+	void notify_power_off();
 	void run();
 	
 	// draw screen
@@ -110,13 +114,13 @@ public:
 	void initialize_sound(int rate, int samples);
 	uint16* create_sound(int* extra_frames);
 	
+	// notify key
+	void key_down(int code);
+	void key_up(int code);
+	
 	// user interface
-	void open_mzt(_TCHAR* filename);
-	void play_datarec(_TCHAR* filename);
-	void rec_datarec(_TCHAR* filename);
-	void close_datarec();
-	void push_play();
-	void push_stop();
+	void open_disk(_TCHAR* file_path, int drv);
+	void close_disk(int drv);
 	bool now_skip();
 	
 	void update_config();
@@ -136,7 +140,6 @@ public:
 	uint32 current_clock();
 	uint32 passed_clock(uint32 prev);
 	uint32 get_prv_pc();
-	void set_pc(uint32 pc);
 	
 	// devices
 	DEVICE* get_device(int id);

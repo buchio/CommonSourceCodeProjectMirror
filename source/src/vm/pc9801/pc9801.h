@@ -34,7 +34,6 @@
 #define SCREEN_WIDTH		640
 #define SCREEN_HEIGHT		400
 #define MAX_DRIVE		4
-#define I8259_MAX_CHIPS		2
 //#define UPD765A_DMA_MODE
 //#define UPD765A_DRQ_DELAY
 //#define UPD765A_WAIT_SEEK
