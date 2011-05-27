@@ -1,33 +1,25 @@
 /*
-	TOSHIBA PASOPIA Emulator 'EmuPIA'
+	EPSON HC-20 Emulator 'eHC-20'
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2006.12.28 -
+	Date   : 2011.05.23-
 
 	[ virtual machine ]
 */
 
-#include "pasopia.h"
+#include "hc20.h"
 #include "../../emu.h"
 #include "../device.h"
 #include "../event.h"
 
+#include "../beep.h"
 #include "../datarec.h"
-#include "../hd46505.h"
-#include "../i8255.h"
-#include "../io.h"
-#include "../ls393.h"
-#include "../not.h"
-#include "../pcm1bit.h"
-#include "../z80.h"
-#include "../z80ctc.h"
-#include "../z80pio.h"
+#include "../hd146818p.h"
+#include "../mc6800.h"
+#include "../tf20.h"
 
-#include "display.h"
-#include "keyboard.h"
 #include "memory.h"
-#include "pac2.h"
 
 // ----------------------------------------------------------------------------
 // initialize
@@ -41,110 +33,74 @@ VM::VM(EMU* parent_emu) : emu(parent_emu)
 	event = new EVENT(this, emu);	// must be 2nd device
 	event->initialize();		// must be initialized first
 	
+	beep = new BEEP(this, emu);
 	drec = new DATAREC(this, emu);
-	crtc = new HD46505(this, emu);
-	pio0 = new I8255(this, emu);
-	pio1 = new I8255(this, emu);
-	pio2 = new I8255(this, emu);
-	io = new IO(this, emu);
-	flipflop = new LS393(this, emu); // LS74
-	not = new NOT(this, emu);
-	pcm = new PCM1BIT(this, emu);
-	cpu = new Z80(this, emu);
-	ctc = new Z80CTC(this, emu);
-	pio = new Z80PIO(this, emu);
+	rtc = new HD146818P(this, emu);
+	cpu = new MC6800(this, emu);
+	tf20 = new TF20(this, emu);
 	
-	display = new DISPLAY(this, emu);
-	key = new KEYBOARD(this, emu);
 	memory = new MEMORY(this, emu);
-	pac2 = new PAC2(this, emu);
 	
 	// set contexts
 	event->set_context_cpu(cpu);
-	event->set_context_sound(pcm);
+	event->set_context_sound(beep);
 	
-	drec->set_context_out(pio2, SIG_I8255_PORT_B, 0x20);
-	crtc->set_context_disp(pio1, SIG_I8255_PORT_B, 8);
-	crtc->set_context_vsync(pio1, SIG_I8255_PORT_B, 0x20);
-	crtc->set_context_hsync(pio1, SIG_I8255_PORT_B, 0x40);
-	pio0->set_context_port_a(memory, SIG_MEMORY_I8255_0_A, 0xff, 0);
-	pio0->set_context_port_b(memory, SIG_MEMORY_I8255_0_B, 0xff, 0);
-	pio1->set_context_port_a(display, SIG_DISPLAY_I8255_1_A, 0xff, 0);
-	pio1->set_context_port_c(memory, SIG_MEMORY_I8255_1_C, 0xff, 0);
-	pio2->set_context_port_a(pcm, SIG_PCM1BIT_MUTE, 0x02, 0);
-	pio2->set_context_port_a(drec, SIG_DATAREC_OUT, 0x10, 0);
-	pio2->set_context_port_a(not, SIG_NOT_INPUT, 0x20, 0);
-	not->set_context_out(drec, SIG_DATAREC_REMOTE, 1);
-	flipflop->set_context_1qa(pcm, SIG_PCM1BIT_SIGNAL, 1);
-	ctc->set_context_zc1(flipflop, SIG_LS393_CLK, 1);
-	ctc->set_context_zc2(ctc, SIG_Z80CTC_TRIG_3, 1);
-	ctc->set_constant_clock(0, CPU_CLOCKS);
-	ctc->set_constant_clock(1, CPU_CLOCKS);
-	ctc->set_constant_clock(2, CPU_CLOCKS);
-	pio->set_context_port_a(pcm, SIG_PCM1BIT_ON, 0x80, 0);
-	pio->set_context_port_a(key, SIG_KEYBOARD_Z80PIO_A, 0xff, 0);
+/*
+	memory:
+		0002	in	---	port1 (cpu)
+		0003	in/out	---	port2 (cpu)
+		0006		---	port3 (cpu)
+		0007		---	port4 (cpu)
+		0020	out	bit0-7	key scan line
+		0022	in	bit0-7	key scan result (lo)
+		0026	out	bit0-2	selection of lcd driver (0,1-6)
+				bit3	output selection for lcd driver (0=data 1=command)
+				bit4	key input interrupt mask (0=Mask)
+				bit5	pout (serial control line)
+				bit6	shift/load select for rom cartridge (0=load 1=shift)
+				bit7	clock for rom cartridge
+		0028	in	bit0-1	key scan result (hi)
+				bit6	power switch interrupt flag (0=active)
+				bit7	busy signal of lcd controller (0=busy)
+		002a	out	bit0-7	output data to lcd controller
+			in	---	serial clock to lcd controller
+		002b	in	---	serial clock to lcd controller
+		002c	in/out	---	used for interrupt mask setting in sleep mode
+		0030	in/out	---	select expansion unit rom (bank1)
+		0032	in/out	---	select internal rom (bank0)
+		0033	in/out	---	select internal rom (bank0)
+		003c	in	---	XXX: unknown
+
+	port1:
+		p10	in	dsr (RS-232C)
+		p11	in	cts (RS-232C)
+		p12	in	error status of slave mcu (P34)
+		p13	in	external interrupt flag(0=active)
+		p14	in	battery voltage interrupt flag (0=active)
+		p15	in	key input inerrupt flag (0=active)
+		p16	in	pin (serial control line)
+		p17	in	counter status of microcassete / rom data / plug-in option
+
+	port 2:
+		p20	in	barcode input signal (1=mark 0=space)
+		p21	out	txd (RS-232C)
+		p22	out	selection for CPU serial communication (0=slave 1=serial)
+*/	
+	cpu->set_context_port2(memory, SIG_MEMORY_PORT_2, 0xff, 0);
+	cpu->set_context_port3(memory, SIG_MEMORY_PORT_3, 0xff, 0);
+	cpu->set_context_port4(memory, SIG_MEMORY_PORT_4, 0xff, 0);
+	cpu->set_context_sio(memory, SIG_MEMORY_SIO);
+	rtc->set_context_intr(memory, SIG_MEMORY_RTC_IRQ, 1);
+	tf20->set_context_sio(cpu, SIG_MC6801_SIO_RECV);
 	
-	display->set_context_crtc(crtc);
-	display->set_vram_ptr(memory->get_vram());
-	display->set_attr_ptr(memory->get_attr());
-	display->set_regs_ptr(crtc->get_regs());
-	key->set_context_pio(pio);
-	memory->set_context_pio0(pio0);
-	memory->set_context_pio1(pio1);
-	memory->set_context_pio2(pio2);
+	memory->set_context_beep(beep);
+	memory->set_context_cpu(cpu);
+	memory->set_context_drec(drec);
+	memory->set_context_rtc(rtc);
+	memory->set_context_tf20(tf20);
 	
 	// cpu bus
 	cpu->set_context_mem(memory);
-	cpu->set_context_io(io);
-	cpu->set_context_intr(ctc);
-	
-	// z80 family daisy chain
-	ctc->set_context_intr(cpu, 0);
-	ctc->set_context_child(pio);
-	pio->set_context_intr(cpu, 1);
-/*
-pio0	0	8255	vram laddr
-	1	8255	vram data
-	2	8255
-	3	8255
-pio1	8	8255	crtc mode
-	9	8255	
-	a	8255	vram addr, attrib & strobe
-	b	8255
-	10	crtc	index
-	11	crtc	regs
-	18	pac2
-	19	pac2
-	1a	pac2
-	1b	pac2
-pio2	20	8255	out cmt, sound
-	21	8255	in cmt
-	22	8255	in memory map
-	23	8255
-	28	z80ctc
-	29	z80ctc
-	2a	z80ctc
-	2b	z80ctc
-	30	z80pio
-	31	z80pio
-	32	z80pio
-	33	z80pio
-	38	printer
-	3c	memory	out memory map
-*/
-	// i/o bus
-	io->set_iomap_range_rw(0x00, 0x03, pio0);
-	io->set_iomap_range_rw(0x08, 0x0b, pio1);
-	io->set_iomap_range_r(0x10, 0x11, crtc);
-	io->set_iomap_range_w(0x10, 0x11, display);
-	io->set_iomap_range_rw(0x18, 0x1b, pac2);
-	io->set_iomap_range_rw(0x20, 0x23, pio2);
-	io->set_iomap_range_rw(0x28, 0x2b, ctc);
-	io->set_iomap_alias_rw(0x30, pio, 0);
-	io->set_iomap_alias_rw(0x31, pio, 2);
-	io->set_iomap_alias_w(0x32, pio, 1);
-	io->set_iomap_alias_w(0x33, pio, 3);
-	io->set_iomap_single_w(0x3c, memory);
 	
 	// initialize all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {
@@ -182,14 +138,14 @@ void VM::reset()
 	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->reset();
 	}
-	
-	// set initial port status
-#ifdef _LCD
-	pio1->write_signal(SIG_I8255_PORT_B, 0, 0x10);
-#else
-	pio1->write_signal(SIG_I8255_PORT_B, 0xffffffff, 0x10);
-#endif
-	pcm->write_signal(SIG_PCM1BIT_ON, 0, 1);
+	cpu->write_signal(SIG_MC6801_PORT_1, 0x78, 0xff);
+	cpu->write_signal(SIG_MC6801_PORT_2, 0x9e, 0xff);
+}
+
+void VM::notify_power_off()
+{
+//	emu->out_debug("--- POWER OFF ---\n");
+	memory->notify_power_off();
 }
 
 void VM::run()
@@ -248,7 +204,7 @@ uint32 VM::get_prv_pc()
 
 void VM::draw_screen()
 {
-	display->draw_screen();
+	memory->draw_screen();
 }
 
 // ----------------------------------------------------------------------------
@@ -261,7 +217,7 @@ void VM::initialize_sound(int rate, int samples)
 	event->initialize_sound(rate, samples);
 	
 	// init sound gen
-	pcm->init(rate, 8000);
+	beep->init(rate, 1000, 2, 8000);
 }
 
 uint16* VM::create_sound(int* extra_frames)
@@ -272,6 +228,16 @@ uint16* VM::create_sound(int* extra_frames)
 // ----------------------------------------------------------------------------
 // user interface
 // ----------------------------------------------------------------------------
+
+void VM::open_disk(_TCHAR* filename, int drv)
+{
+	tf20->open_disk(filename, drv);
+}
+
+void VM::close_disk(int drv)
+{
+	tf20->close_disk(drv);
+}
 
 void VM::play_datarec(_TCHAR* filename)
 {
