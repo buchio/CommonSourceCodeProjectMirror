@@ -3,31 +3,30 @@
 	Skelton for retropc emulator
 
 	Author : Takeda.Toshiya
-	Date   : 2006.12.01 -
+	Date   : 2007.02.11 -
 
-	[ kanji rom ]
+	[ MZ-1E26 (Voice Communication I/F) ]
 */
 
-#ifndef _KANJI_H_
-#define _KANJI_H_
+#ifndef _MZ1E26_H_
+#define _MZ1E26_H_
 
 #include "../vm.h"
 #include "../../emu.h"
 #include "../device.h"
 
-class KANJI : public DEVICE
+class MZ1E26 : public DEVICE
 {
 private:
-	uint8 rom[0x20000];
-	uint16 ptr;
+	uint8 prev_data;
 	
 public:
-	KANJI(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu) {}
-	~KANJI() {}
+	MZ1E26(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu) {}
+	~MZ1E26() {}
 	
 	// common functions
 	void initialize();
-	void write_io8(uint32 addr, uint32 data);
+	void write_data8(uint32 addr, uint32 data);
 	uint32 read_io8(uint32 addr);
 };
 
