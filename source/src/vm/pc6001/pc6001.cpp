@@ -1,22 +1,29 @@
 /*
-	SANYO PHC-20 Emulator 'ePHC-20'
+	NEC PC-6001 Emulator 'yaPC-6001'
 
-	Author : Takeda.Toshiya
-	Date   : 2010.09.03-
+	Author : tanam
+	Date   : 2013.07.15-
 
 	[ virtual machine ]
 */
 
-#include "phc20.h"
+#include "pc6001.h"
 #include "../../emu.h"
 #include "../device.h"
 #include "../event.h"
 
-#include "../datarec.h"
+#include "../i8255.h"
+#include "../io.h"
+#include "../upd765a.h"
 #include "../mc6847.h"
+#include "../ym2203.h"
 #include "../z80.h"
 
+#include "display.h"
+#include "joystick.h"
+#include "keyboard.h"
 #include "memory.h"
+#include "system.h"
 
 // ----------------------------------------------------------------------------
 // initialize
@@ -29,37 +36,65 @@ VM::VM(EMU* parent_emu) : emu(parent_emu)
 	dummy = new DEVICE(this, emu);	// must be 1st device
 	event = new EVENT(this, emu);	// must be 2nd device
 	
-	drec = new DATAREC(this, emu);
+	pio_k = new I8255(this, emu);
+	pio_f = new I8255(this, emu);
+	io = new IO(this, emu);
+	fdc = new UPD765A(this, emu);
 	vdp = new MC6847(this, emu);
+	psg = new YM2203(this, emu);
 	cpu = new Z80(this, emu);
 	
+	display = new DISPLAY(this, emu);
+	joystick = new JOYSTICK(this, emu);
+	keyboard = new KEYBOARD(this, emu);
 	memory = new MEMORY(this, emu);
+	system = new SYSTEM(this, emu);
 	
 	// set contexts
 	event->set_context_cpu(cpu);
-	
-	drec->set_context_out(memory, SIG_MEMORY_SYSPORT, 1);
-	vdp->set_context_vsync(memory, SIG_MEMORY_SYSPORT, 2);	// vsync / hsync?
-	
-	vdp->load_font_image(emu->bios_path(_T("FONT.ROM")));
-	vdp->set_vram_ptr(memory->get_vram(), 0x400);
+	event->set_context_sound(psg);
+	system->set_context_pio(pio_f);
+	system->set_context_fdc(fdc);
+	joystick->set_context_psg(psg);
+#ifdef _TANAM
+	vdp->load_font_image(emu->bios_path(_T("ROM/CGROM60.60")));
+#else
+	vdp->load_font_image(emu->bios_path(_T("CGROM60.60")));
+#endif
 	vdp->set_context_cpu(cpu);
-	vdp->write_signal(SIG_MC6847_AG, 0, 0);		// force character mode
-	vdp->write_signal(SIG_MC6847_AS, 0, 0);
-	vdp->write_signal(SIG_MC6847_INTEXT, 0, 0);	// force internal character ???
-	vdp->write_signal(SIG_MC6847_CSS, 0, 0);
-	
-	memory->set_context_drec(drec);
-	
+	display->set_context_cpu(cpu);
+	display->set_context_vdp(vdp);
+	display->set_vram_ptr(memory->get_vram());
+	keyboard->set_context_cpu(cpu);
+	keyboard->set_context_pio(pio_k);
+	keyboard->set_context_memory(memory);
+
 	// cpu bus
 	cpu->set_context_mem(memory);
-	cpu->set_context_io(dummy);
-	cpu->set_context_intr(dummy);
+	cpu->set_context_io(io);
+	cpu->set_context_intr(keyboard);
+	
+	// i/o bus
+	io->set_iomap_single_rw(0x90, pio_k);
+	io->set_iomap_single_rw(0x91, pio_k);
+	io->set_iomap_single_w(0x92, pio_k);
+	io->set_iovalue_single_r(0x92, 0xff);
+	io->set_iomap_single_w(0x93, pio_k);
+	io->set_iomap_range_rw(0xd0, 0xd3, system);
+	io->set_iomap_range_rw(0xf0, 0xf3, memory);
+	io->set_iomap_alias_w(0xa0, psg, 0);	// PSG ch
+	io->set_iomap_alias_w(0xa1, psg, 1);	// PSG data
+	io->set_iomap_alias_r(0xa2, psg, 1);	// PSG data
+	io->set_iomap_single_w(0xb0, display);
 	
 	// initialize all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->initialize();
 	}
+#ifdef _TANAM
+	fdc->open_disk(0, emu->bios_path(_T("D1/INIT.D88")) ,0);
+	system->open_disk(0, emu->bios_path(_T("D1/INIT.D88")) ,0);
+#endif
 }
 
 VM::~VM()
@@ -86,7 +121,6 @@ DEVICE* VM::get_device(int id)
 // ----------------------------------------------------------------------------
 // drive virtual machine
 // ----------------------------------------------------------------------------
-
 void VM::reset()
 {
 	// reset all devices
@@ -106,7 +140,13 @@ void VM::run()
 
 void VM::draw_screen()
 {
-	vdp->draw_screen();
+	display->draw_screen();
+}
+
+int VM::access_lamp()
+{
+	uint32 status = fdc->read_signal(0);
+	return (status & (1 | 4)) ? 1 : (status & (2 | 8)) ? 2 : 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -117,6 +157,9 @@ void VM::initialize_sound(int rate, int samples)
 {
 	// init sound manager
 	event->initialize_sound(rate, samples);
+	
+	// init sound gen
+	psg->init(rate, 1996750, samples, 0, 0);
 }
 
 uint16* VM::create_sound(int* extra_frames)
@@ -133,27 +176,67 @@ int VM::sound_buffer_ptr()
 // user interface
 // ----------------------------------------------------------------------------
 
+void VM::open_cart(int drv, _TCHAR* file_path)
+{
+	if(drv == 0) {
+		memory->open_cart(file_path);
+		reset();
+	}
+}
+
+void VM::close_cart(int drv)
+{
+	if(drv == 0) {
+		memory->close_cart();
+		reset();
+	}
+}
+
+bool VM::cart_inserted(int drv)
+{
+	if(drv == 0) {
+		return memory->cart_inserted();
+	} else {
+		return false;
+	}
+}
+
+void VM::open_disk(int drv, _TCHAR* file_path, int offset)
+{
+	fdc->open_disk(drv, file_path, offset);
+	system->open_disk(drv, file_path, offset);
+}
+
+void VM::close_disk(int drv)
+{
+	fdc->close_disk(drv);
+	system->close_disk(drv);
+}
+
+bool VM::disk_inserted(int drv)
+{
+	return fdc->disk_inserted(drv);
+}
+
 void VM::play_tape(_TCHAR* file_path)
 {
-	drec->play_tape(file_path);
-	drec->write_signal(SIG_DATAREC_REMOTE, 1, 1);
+	//drec->play_tape(file_path);
 }
 
 void VM::rec_tape(_TCHAR* file_path)
 {
-	drec->rec_tape(file_path);
-	drec->write_signal(SIG_DATAREC_REMOTE, 1, 1);
+	//drec->rec_tape(file_path);
 }
 
 void VM::close_tape()
 {
-	drec->close_tape();
-	drec->write_signal(SIG_DATAREC_REMOTE, 0, 0);
+	//drec->close_tape();
 }
 
 bool VM::tape_inserted()
 {
-	return drec->tape_inserted();
+	//return drec->tape_inserted();
+	return false;
 }
 
 bool VM::now_skip()
@@ -167,4 +250,3 @@ void VM::update_config()
 		device->update_config();
 	}
 }
-
