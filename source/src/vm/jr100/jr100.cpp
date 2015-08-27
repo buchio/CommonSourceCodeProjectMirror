@@ -1,31 +1,28 @@
 /*
-	SORD m5 Emulator 'Emu5'
+	National JR-100 Emulator 'eJR-100'
 
 	Author : Takeda.Toshiya
-	Date   : 2006.08.18 -
+	Date   : 2015.08.27-
 
 	[ virtual machine ]
 */
 
-#include "m5.h"
+#include "jr100.h"
 #include "../../emu.h"
 #include "../device.h"
 #include "../event.h"
 
 #include "../datarec.h"
-#include "../io.h"
-#include "../memory.h"
-#include "../sn76489an.h"
-#include "../tms9918a.h"
-#include "../z80.h"
-#include "../z80ctc.h"
+#include "../mc6800.h"
+#include "../not.h"
+#include "../pcm1bit.h"
+#include "../sy6552.h"
 
 #ifdef USE_DEBUGGER
 #include "../debugger.h"
 #endif
 
-#include "cmt.h"
-#include "keyboard.h"
+#include "memory.h"
 
 // ----------------------------------------------------------------------------
 // initialize
@@ -39,69 +36,42 @@ VM::VM(EMU* parent_emu) : emu(parent_emu)
 	event = new EVENT(this, emu);	// must be 2nd device
 	
 	drec = new DATAREC(this, emu);
-	io = new IO(this, emu);
-	memory = new MEMORY(this, emu);
-	psg = new SN76489AN(this, emu);
-	vdp = new TMS9918A(this, emu);
-	cpu = new Z80(this, emu);
-	ctc = new Z80CTC(this, emu);
+	cpu = new MC6800(this, emu);	// MB8861N
+	not_mic = new NOT(this, emu);
+	not_ear = new NOT(this, emu);
+	pcm = new PCM1BIT(this, emu);
+	via = new SY6552(this, emu);
 	
-	cmt = new CMT(this, emu);
-	key = new KEYBOARD(this, emu);
+	memory = new MEMORY(this, emu);
 	
 	// set contexts
 	event->set_context_cpu(cpu);
-	event->set_context_sound(psg);
+	event->set_context_sound(pcm);
 	event->set_context_sound(drec);
 	
-	drec->set_context_ear(cmt, SIG_CMT_IN, 1);
-	drec->set_context_end(cmt, SIG_CMT_EOT, 1);
-	vdp->set_context_irq(ctc, SIG_Z80CTC_TRIG_3, 1);
-	cmt->set_context_drec(drec);
+	via->set_context_port_a(memory, SIG_MEMORY_VIA_PORT_A, 0xff, 0);
+	via->set_context_port_b(memory, SIG_MEMORY_VIA_PORT_B, 0xff, 0);
+	via->set_context_port_b(pcm, SIG_PCM1BIT_SIGNAL, 0x80, 0);	// PB7 -> Speaker
+	via->set_context_port_b(via, SIG_MEMORY_VIA_PORT_B, 0x80, -1);	// PB7 -> PB6
+	via->set_context_cb2(not_mic, SIG_NOT_INPUT, 1);		// CB2 -> NOT -> MIC
+	via->set_constant_clock(CPU_CLOCKS >> 2);
+	not_mic->set_context_out(drec, SIG_DATAREC_MIC, 1);
+	drec->set_context_ear(not_ear, SIG_NOT_INPUT, 1);		// EAR -> NOT -> CA1,CB1
+	not_ear->set_context_out(via, SIG_SY6552_PORT_CA1, 1);
+	not_ear->set_context_out(via, SIG_SY6552_PORT_CB1, 1);
+	
+	memory->set_context_via(via);
 	
 	// cpu bus
 	cpu->set_context_mem(memory);
-	cpu->set_context_io(io);
-	cpu->set_context_intr(ctc);
 #ifdef USE_DEBUGGER
 	cpu->set_context_debugger(new DEBUGGER(this, emu));
-#endif
-	
-	// z80 family daisy chain
-	ctc->set_context_intr(cpu, 0);
-	
-	// memory bus
-	memset(ram, 0, sizeof(ram));
-	memset(ext, 0, sizeof(ext));
-	memset(ipl, 0xff, sizeof(ipl));
-	memset(cart, 0xff, sizeof(cart));
-	
-	memory->read_bios(_T("IPL.ROM"), ipl, sizeof(ipl));
-	
-	memory->set_memory_r(0x0000, 0x1fff, ipl);
-	memory->set_memory_r(0x2000, 0x6fff, cart);
-	memory->set_memory_rw(0x7000, 0x7fff, ram);
-	memory->set_memory_rw(0x8000, 0xffff, ext);
-	
-	// i/o bus
-	io->set_iomap_range_rw(0x00, 0x03, ctc);
-	io->set_iomap_range_rw(0x10, 0x11, vdp);
-	io->set_iomap_single_w(0x20, psg);
-	io->set_iomap_range_r(0x30, 0x37, key);
-	io->set_iomap_single_w(0x40, cmt);
-	io->set_iomap_single_rw(0x50, cmt);
-	
-	// FD5 floppy drive uint
-	subcpu = NULL;
-#ifdef USE_DEBUGGER
-//	subcpu->set_context_debugger(new DEBUGGER(this, emu));
 #endif
 	
 	// initialize all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->initialize();
 	}
-	inserted = false;
 }
 
 VM::~VM()
@@ -137,9 +107,22 @@ void VM::reset()
 	}
 }
 
+void VM::special_reset()
+{
+	// reset all devices
+	for(DEVICE* device = first_device; device; device = device->next_device) {
+		device->reset();
+	}
+}
+
 void VM::run()
 {
 	event->drive();
+}
+
+double VM::frame_rate()
+{
+	return event->frame_rate();
 }
 
 // ----------------------------------------------------------------------------
@@ -151,8 +134,6 @@ DEVICE *VM::get_cpu(int index)
 {
 	if(index == 0) {
 		return cpu;
-	} else if(index == 1) {
-		return subcpu;
 	}
 	return NULL;
 }
@@ -164,7 +145,7 @@ DEVICE *VM::get_cpu(int index)
 
 void VM::draw_screen()
 {
-	vdp->draw_screen();
+	memory->draw_screen();
 }
 
 // ----------------------------------------------------------------------------
@@ -177,7 +158,7 @@ void VM::initialize_sound(int rate, int samples)
 	event->initialize_sound(rate, samples);
 	
 	// init sound gen
-	psg->init(rate, 3579545, 8000);
+	pcm->init(rate, 5000);
 }
 
 uint16* VM::create_sound(int* extra_frames)
@@ -194,51 +175,50 @@ int VM::sound_buffer_ptr()
 // user interface
 // ----------------------------------------------------------------------------
 
-void VM::open_cart(int drv, const _TCHAR* file_path)
-{
-	if(drv == 0) {
-		memset(cart, 0xff, sizeof(cart));
-		inserted = memory->read_image(file_path, cart, sizeof(cart));
-		reset();
-	}
-}
-
-void VM::close_cart(int drv)
-{
-	if(drv == 0) {
-		memset(cart, 0xff, sizeof(cart));
-		inserted = false;
-		reset();
-	}
-}
-
-bool VM::cart_inserted(int drv)
-{
-	if(drv == 0) {
-		return inserted;
-	} else {
-		return false;
-	}
-}
-
 void VM::play_tape(const _TCHAR* file_path)
 {
 	drec->play_tape(file_path);
+	push_play();
 }
 
 void VM::rec_tape(const _TCHAR* file_path)
 {
 	drec->rec_tape(file_path);
+	push_play();
 }
 
 void VM::close_tape()
 {
+	push_stop();
 	drec->close_tape();
 }
 
 bool VM::tape_inserted()
 {
 	return drec->tape_inserted();
+}
+
+void VM::push_play()
+{
+	drec->set_ff_rew(0);
+	drec->set_remote(true);
+}
+
+void VM::push_stop()
+{
+	drec->set_remote(false);
+}
+
+void VM::push_fast_forward()
+{
+	drec->set_ff_rew(1);
+	drec->set_remote(true);
+}
+
+void VM::push_fast_rewind()
+{
+	drec->set_ff_rew(-1);
+	drec->set_remote(true);
 }
 
 bool VM::now_skip()
@@ -262,9 +242,6 @@ void VM::save_state(FILEIO* state_fio)
 	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->save_state(state_fio);
 	}
-	state_fio->Fwrite(ram, sizeof(ram), 1);
-	state_fio->Fwrite(ext, sizeof(ext), 1);
-	state_fio->FputBool(inserted);
 }
 
 bool VM::load_state(FILEIO* state_fio)
@@ -277,9 +254,6 @@ bool VM::load_state(FILEIO* state_fio)
 			return false;
 		}
 	}
-	state_fio->Fread(ram, sizeof(ram), 1);
-	state_fio->Fread(ext, sizeof(ext), 1);
-	inserted = state_fio->FgetBool();
 	return true;
 }
 
