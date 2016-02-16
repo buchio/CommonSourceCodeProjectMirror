@@ -2,8 +2,8 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="pasopia7lcd"
-	ProjectGUID="{B1D477F8-B0B4-4E4F-BEFA-4850CB6CD042}"
+	Name="hc20"
+	ProjectGUID="{E189B8CC-341D-4715-9266-08610C61015A}"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -42,17 +42,17 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\Debug/pasopia7lcd.tlb"
+				TypeLibraryName=".\Debug/hc20.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_PASOPIA7;_LCD"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_HC20"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				PrecompiledHeaderFile=".\Debug/pasopia7lcd.pch"
+				PrecompiledHeaderFile=".\Debug/hc20.pch"
 				AssemblerListingLocation=".\Debug/"
 				ObjectFile=".\Debug/"
 				ProgramDataBaseFileName=".\Debug/"
@@ -75,11 +75,11 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="odbc32.lib odbccp32.lib winmm.lib imm32.lib"
-				OutputFile=".\Debug/pasopia7lcd.exe"
+				OutputFile=".\Debug/hc20.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\Debug/pasopia7lcd.pdb"
+				ProgramDatabaseFile=".\Debug/hc20.pdb"
 				SubSystem="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -97,7 +97,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\Debug/pasopia7lcd.bsc"
+				OutputFile=".\Debug/hc20.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -137,19 +137,19 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\Release/pasopia7lcd.tlb"
+				TypeLibraryName=".\Release/hc20.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				InlineFunctionExpansion="2"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_PASOPIA7;_LCD"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_HC20"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				EnableEnhancedInstructionSet="2"
-				PrecompiledHeaderFile=".\Release/pasopia7lcd.pch"
+				PrecompiledHeaderFile=".\Release/hc20.pch"
 				AssemblerListingLocation=".\Release/"
 				ObjectFile=".\Release/"
 				ProgramDataBaseFileName=".\Release/"
@@ -171,10 +171,10 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="odbc32.lib odbccp32.lib winmm.lib imm32.lib"
-				OutputFile=".\Release/pasopia7lcd.exe"
+				OutputFile=".\Release/hc20.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
-				ProgramDatabaseFile=".\Release/pasopia7lcd.pdb"
+				ProgramDatabaseFile=".\Release/hc20.pdb"
 				SubSystem="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -192,7 +192,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\Release/pasopia7lcd.bsc"
+				OutputFile=".\Release/hc20.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -467,7 +467,7 @@
 				Filter="cpp"
 				>
 				<File
-					RelativePath="src\vm\datarec.cpp"
+					RelativePath="src\vm\beep.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -527,7 +527,7 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\vm\hd46505.cpp"
+					RelativePath="src\vm\hd146818p.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -567,7 +567,7 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\vm\io.cpp"
+					RelativePath="src\vm\mc6800.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -582,72 +582,14 @@
 						>
 						<Tool
 							Name="VCCLCompilerTool"
+							Optimization="0"
 							PreprocessorDefinitions=""
+							BasicRuntimeChecks="3"
 						/>
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\vm\ls393.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\not.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pcm1bit.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\sn76489an.cpp"
+					RelativePath="src\vm\tf20.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -707,27 +649,7 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\vm\z80ctc.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\z80pio.cpp"
+					RelativePath="src\vm\z80sio.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -752,7 +674,7 @@
 				Filter="cpp"
 				>
 				<File
-					RelativePath="src\vm\pasopia7\display.cpp"
+					RelativePath="src\vm\hc20\hc20.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -772,187 +694,7 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\vm\pasopia7\floppy.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\iobus.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\iotrap.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\joypac2.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\kanjipac2.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\keyboard.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\memory.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\pac2.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\pasopia7.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\rampac2.cpp"
+					RelativePath="src\vm\hc20\memory.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -1016,7 +758,7 @@
 				Filter="h"
 				>
 				<File
-					RelativePath="src\vm\datarec.h"
+					RelativePath="src\vm\beep.h"
 					>
 				</File>
 				<File
@@ -1036,7 +778,7 @@
 					>
 				</File>
 				<File
-					RelativePath="src\vm\hd46505.h"
+					RelativePath="src\vm\hd146818p.h"
 					>
 				</File>
 				<File
@@ -1044,23 +786,11 @@
 					>
 				</File>
 				<File
-					RelativePath="src\vm\io.h"
+					RelativePath="src\vm\mc6800.h"
 					>
 				</File>
 				<File
-					RelativePath="src\vm\ls393.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\not.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pcm1bit.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\sn76489an.h"
+					RelativePath="src\vm\tf20.h"
 					>
 				</File>
 				<File
@@ -1076,11 +806,7 @@
 					>
 				</File>
 				<File
-					RelativePath="src\vm\z80ctc.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\z80pio.h"
+					RelativePath="src\vm\z80sio.h"
 					>
 				</File>
 			</Filter>
@@ -1089,51 +815,11 @@
 				Filter="h"
 				>
 				<File
-					RelativePath="src\vm\pasopia7\display.h"
+					RelativePath="src\vm\hc20\hc20.h"
 					>
 				</File>
 				<File
-					RelativePath="src\vm\pasopia7\floppy.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\iobus.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\iotrap.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\joypac2.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\kanjipac2.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\keyboard.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\memory.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\pac2.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\pac2dev.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\pasopia7.h"
-					>
-				</File>
-				<File
-					RelativePath="src\vm\pasopia7\rampac2.h"
+					RelativePath="src\vm\hc20\memory.h"
 					>
 				</File>
 			</Filter>
@@ -1143,11 +829,11 @@
 			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 			>
 			<File
-				RelativePath="src\res\pasopia7.ico"
+				RelativePath="src\res\hc20.ico"
 				>
 			</File>
 			<File
-				RelativePath="src\res\pasopia7lcd.rc"
+				RelativePath="src\res\hc20.rc"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
