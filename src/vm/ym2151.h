@@ -1,0 +1,91 @@
+/*
+	Skelton for retropc emulator
+
+	Author : Takeda.Toshiya
+	Date   : 2009.03.08-
+
+	[ YM2151 ]
+*/
+
+#ifndef _YM2151_H_
+#define _YM2151_H_
+
+#include "vm.h"
+#include "../emu.h"
+#include "device.h"
+#include "fmgen/opm.h"
+
+#ifdef SUPPORT_WIN32_DLL
+#define SUPPORT_MAME_FM_DLL
+#include "fmdll/fmdll.h"
+#endif
+
+#define SIG_YM2151_MUTE		0
+
+class YM2151 : public DEVICE
+{
+private:
+	// output signals
+	outputs_t outputs_irq;
+	
+	FM::OPM* opm;
+#ifdef SUPPORT_MAME_FM_DLL
+	CFMDLL* fmdll;
+	LPVOID* dllchip;
+	struct {
+		bool written;
+		uint8 data;
+	} port_log[0x100];
+#endif
+	int base_decibel;
+	
+	int chip_clock;
+	uint8 ch;
+	bool irq_prev, mute;
+	
+	uint32 clock_prev;
+	uint32 clock_accum;
+	uint32 clock_const;
+	int timer_event_id;
+	
+	uint32 clock_busy;
+	bool busy;
+	
+	void update_count();
+	void update_event();
+	void update_interrupt();
+	
+public:
+	YM2151(VM* parent_vm, EMU* parent_emu) : DEVICE(parent_vm, parent_emu)
+	{
+		initialize_output_signals(&outputs_irq);
+		base_decibel = 0;
+	}
+	~YM2151() {}
+	
+	// common functions
+	void initialize();
+	void release();
+	void reset();
+	void write_io8(uint32 addr, uint32 data);
+	uint32 read_io8(uint32 addr);
+	void write_signal(int id, uint32 data, uint32 mask);
+	void event_vline(int v, int clock);
+	void event_callback(int event_id, int error);
+	void mix(int32* buffer, int cnt);
+	void set_volume(int ch, int decibel_l, int decibel_r);
+	void update_timing(int new_clocks, double new_frames_per_sec, int new_lines_per_frame);
+	void save_state(FILEIO* state_fio);
+	bool load_state(FILEIO* state_fio);
+	
+	// unique functions
+	void set_context_irq(DEVICE* device, int id, uint32 mask)
+	{
+		register_output_signal(&outputs_irq, device, id, mask);
+	}
+	void initialize_sound(int rate, int clock, int samples, int decibel);
+	void SetReg(uint addr, uint data); // for patch
+};
+
+#endif
+
